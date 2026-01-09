@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "outDir": "javascript",
+    "lib": ["DOM", "ESNext"],
+    "target": "esnext",
+    "module": "es6",
+    "allowSyntheticDefaultImports": true
+  }
+}

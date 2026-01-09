@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "textarea-caret": "^3.1.0"
+  },
+  "devDependencies": {
+    "@types/textarea-caret": "^3.0.4"
+  }
+}

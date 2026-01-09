@@ -1,0 +1,54 @@
+@font-face {
+  font-family: JBExtraLight;
+  src: url(JetBrainsMono-ExtraLight.ttf);
+}
+body {
+  background: black;
+  color: white;
+  font-family: JBExtraLight;
+  overflow: clip;
+}
+#patterns, #overlay {
+  resize: none;
+  background: black;
+  color: white;
+  position: absolute;
+  top: 50px;
+  left: 0;
+  width: calc(100% - 42px);
+  height: calc(100% - 92px);
+  padding: 10px;
+  margin: 10px;
+  border-radius: 0;
+  font-size: 14px;
+  font-family: JBExtraLight;
+  font-weight: normal;
+  line-height: 1.2;
+}
+#patterns {
+  background-color: transparent;
+  color: transparent;
+  caret-color: white;
+}
+#backdrop {
+  overflow: auto;
+}
+.err {
+  text-decoration: underline;
+  text-decoration-color: magenta;
+}
+.warn {
+  text-decoration: underline;
+  text-decoration-color: yellow;
+}
+#tooltip {
+  position: absolute;
+  padding: 10px;
+  z-index: 99;
+  background: #111;
+  border: 1px solid #444;
+  border-radius: 5px;
+}
+hr {
+  border-color: #444;
+}
