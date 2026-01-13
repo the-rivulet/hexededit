@@ -194,6 +194,21 @@ export interface StackTrace {
   stack: StackItem[];
   problems: Problem[];
 }
+export interface TraceLeaf {
+  item: StackTrace;
+  iLevel: number;
+  iList: (HexPattern | Iota)[];
+  previous: TraceLeaf;
+}
+export const getAllNodes = (leaf: TraceLeaf): TraceLeaf[] => (leaf.previous ? [leaf, ...getAllNodes(leaf.previous)] : [leaf]);
+export const getIndex = (leaf: TraceLeaf): number => (leaf.previous ? 1 + getIndex(leaf.previous) : -1);
+export const itemAtIndex = (leaf: TraceLeaf, i: number) => getAllNodes(leaf).find(x => getIndex(x) == i);
+export function itemsAtIndex (leaves: TraceLeaf[], i: number) {
+  let alreadyFound = [];
+  return leaves.flatMap(x => {let y = itemAtIndex(x, i); if(alreadyFound.includes(y)) {return [];} alreadyFound.push(y); return [y];});
+}
+export const propagateProblems = (leaf: TraceLeaf): Problem[] => (leaf.previous ? [...leaf.item.problems, ...propagateProblems(leaf.previous)] : leaf.item.problems);
+
 class SimpleHexPattern extends HexPattern {
   constructor(name: string, pops: IotaType[], pushes: ((iotas: Iota[]) => (Iota | StackItem)[][])) {
     super(name, (stack) => {
@@ -407,74 +422,53 @@ let splatStack = (stack: StackItem[]): Iota[][] => {
 function hermesGambit(stack: StackItem[]) {
   let outputs: StackTrace[] = [];
   for(let option of popItem(stack)) {
-    if(!option.iota) {
-      outputs.push({stack: [...option.remaining, new GarbageIota().toItem()], problems: [{type: ProblemType.Warning, description: "expected list but the stack was empty"}]});
-      continue;
-    }
-    if(option.iota.type != IotaType.List) {
-      outputs.push({stack: [...option.remaining, new GarbageIota().toItem()], problems: [{type: ProblemType.Warning, description: "expected list but got " + option.iota}]});
-      continue;
-    }
+    if(!option.iota) { outputs.push({stack: [...option.remaining, new GarbageIota().toItem()], problems: [{type: ProblemType.Warning, description: "expected list but the stack was empty"}]}); continue; }
+    if(option.iota.type != IotaType.List) { outputs.push({stack: [...option.remaining, new GarbageIota().toItem()], problems: [{type: ProblemType.Warning, description: "expected list but got " + option.iota}]}); continue; }
     const splatted = splatStack((option.iota as ListIota).contents);
-    let result = splatted.flatMap(x => compileHex(x, option.remaining).at(-1).map(y => ({stack: y.stack, problems: []})));
+    const formatProblem = (p: Problem, l: number, i: Iota) => ({type: p.type, description: "while evaluating " + i + " on line " + l + ":<br/>&nbsp;&nbsp;" + p.description});
+    let result = splatted.flatMap(x => compileHex(x, option.remaining));
     // just put all of the errors on the last stack option, whatever. TODO: make stack traces into a tree instead
-    result[0].problems = splatted.flatMap(x => compileHex(x, option.remaining).flatMap((y, yi) => y.flatMap((z, zi) => z.problems.map(w => ({type: w.type, description: "while evaluating " + x[yi] + " on line " + (yi+1) + ":<br/>&nbsp;&nbsp;" + w.description})))));
-    outputs.push(...result);
+    //result[0].problems = splatted.flatMap(x => compileHex(x, option.remaining).flatMap((y, yi) => y.flatMap((z, zi) => z.problems.map(w => ()))));
+    outputs.push(...(result.map(x => x.item)));
   }
   return outputs;
 }
 
 export function compileHex(patterns: (HexPattern | Iota)[], startingIotas: StackItem[] = []) {
   console.group("Evaluating", patterns.map(x => (x instanceof HexPattern ? x.name : x)).join(", "));
-  let stackTraces: StackTrace[][] = [];
-  let stackOptions: StackTrace[] = [{stack: startingIotas, problems: []}];
-  let introspection: {level: number, list: (HexPattern | Iota)[]} = {level: 0, list: []};
+  let stackTraces: TraceLeaf[] = [{item: {stack: startingIotas, problems: []}, previous: undefined, iLevel: 0, iList: []}];
   for(let i = 0; i < patterns.length; i++) {
     const item = patterns[i];
     const pat = item instanceof HexPattern ? item : item instanceof PatternIota ? item.pattern : undefined;
     if(!pat) {
-      if(introspection.level) {
-        introspection.list.push(item);
-        stackTraces.push(stackOptions.slice(0));
-      } else {
-        const newOpts = stackOptions.map(x => ({stack: x.stack, problems: [{type: ProblemType.Error, description: "expected to evaluate a pattern but got " + item}]}));
-        stackOptions = newOpts;
-        stackTraces.push(newOpts);
-      }
+      stackTraces = stackTraces.map(x => (x.iLevel ? {item: x.item, previous: x, iLevel: x.iLevel, iList: [...x.iList, item]} : {item: {stack: x.item.stack, problems: [{type: ProblemType.Error, description: "expected to evaluate a pattern but got " + item}]}, previous: x, iLevel: 0, iList: []}));
     } else if(pat.name == "}" || pat.name == "Retrospection") {
-      if(introspection.level > 1) {
-        introspection.list.push(item);
-        introspection.level--;
-        stackTraces.push(stackOptions.slice(0));
-      } else if(introspection.level == 1) {
-        const newOpts = stackOptions.map(x => ({stack: [...x.stack, new ListIota(introspection.list.map(y => (y instanceof Iota ? y : new PatternIota(y)).toItem())).toItem()], problems: x.problems}));
-        stackOptions = newOpts;
-        stackTraces.push(newOpts);
-        introspection = {level: 0, list: []};
-      }
+      stackTraces = stackTraces.map(x => (x.iLevel > 1 ? {
+        item: x.item, previous: x, iLevel: x.iLevel - 1, iList: [...x.iList, item]
+      } : x.iLevel == 1 ? {
+        item: {stack: [...x.item.stack, new ListIota(x.iList.map(y => (y instanceof Iota ? y : new PatternIota(y)).toItem())).toItem()], problems: []}, previous: x, iLevel: 0, iList: []
+      } : {
+        item: {stack: [...x.item.stack, new PatternIota(pat).toItem()], problems: []}, previous: x, iLevel: 0, iList: []
+      }));
     } else if(pat.name == "{" || pat.name == "Introspection") {
-      if(introspection.level) introspection.list.push(patterns[i]);
-      introspection.level++;
-      stackTraces.push(stackOptions.slice(0));
-    } else if(introspection.level) {
-      introspection.list.push(patterns[i]);
-      stackTraces.push(stackOptions.slice(0));
+      stackTraces = stackTraces.map(x => ({item: x.item, previous: x, iLevel: x.iLevel + 1, iList: (x.iLevel ? [...x.iList, pat] : [])}));
     } else {
-      let nextStackOptions: StackTrace[] = [];
-      for(let s of stackOptions) {
-        console.log("Evaluating", pat.name, "on", s.stack.map(x => x.iota).join(", "));
-        nextStackOptions.push(...pat.evaluate(s.stack.map(x => new StackItem(x.iota, new Minmaxable(x.count.min, x.count.max)))));
-      }
-      if(nextStackOptions.length) {
-        stackOptions = nextStackOptions.slice(0);
-        stackTraces.push(nextStackOptions.slice(0));
-      } else {
-        console.error("catastrophic failure near", (pat ? pat.name : (item as Iota)), "while evaluating", patterns.map(x => (x instanceof HexPattern ? x.name : x)).join(", "));
-        break;
-      }
+      stackTraces = stackTraces.flatMap(x => (x.iLevel ? [{item: x.item, previous: x, iLevel: x.iLevel, iList: [...x.iList, pat]}] : (() => {
+        let nextStackOptions: TraceLeaf[] = [];
+        for(let s of stackTraces) {
+          console.log("Evaluating", pat.name, "on", s.item.stack.map(x => x.iota).join(", "));
+          nextStackOptions.push(...pat.evaluate(s.item.stack.map(x => new StackItem(x.iota, new Minmaxable(x.count.min, x.count.max)))).map(x => ({item: x, previous: s, iLevel: 0, iList: []})));
+        }
+        if(nextStackOptions.length) {
+          return nextStackOptions.slice(0);
+        } else {
+          console.error("catastrophic failure near", (pat ? pat.name : (item as Iota)), "while evaluating", patterns.map(x => (x instanceof HexPattern ? x.name : x)).join(", "));
+          return [];
+        }
+      })()));
     }
   }
   console.log(stackTraces);
   console.groupEnd();
-  return stackTraces; // deduplication needs work
+  return stackTraces;
 }

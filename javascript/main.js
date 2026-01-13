@@ -1,4 +1,4 @@
-import { allPatterns, defaultPattern, GarbagePattern, getPattern, ProblemType, compileHex } from "./patterns.js";
+import { allPatterns, defaultPattern, GarbagePattern, getPattern, ProblemType, compileHex, itemsAtIndex } from "./patterns.js";
 // syntax highlighting and whatever
 const patterns = document.getElementById("patterns");
 const backdrop = document.getElementById("backdrop");
@@ -45,7 +45,7 @@ function handleInput() {
             pre = pre.replace("&nbsp;", "");
             num++;
         }
-        return "&nbsp;".repeat(num) + "<span class='" + (compilationResult[i].find(x => x.problems.find(y => y.type == ProblemType.Error)) ? "err" : compilationResult[i].find(x => x.problems.find(y => y.type == ProblemType.Warning)) ? "warn" : "") + "'>" + pre + "</span>";
+        return "&nbsp;".repeat(num) + "<span class='" + (itemsAtIndex(compilationResult, i).find(x => x.item.problems.find(y => y.type == ProblemType.Error)) ? "err" : itemsAtIndex(compilationResult, i).find(x => x.item.problems.find(y => y.type == ProblemType.Warning)) ? "warn" : "") + "'>" + pre + "</span>";
     }).join("<br/>").replaceAll("span&nbsp;", "span ");
     overlay.innerHTML = result;
 }
@@ -107,7 +107,7 @@ patterns.addEventListener("keydown", (ev) => {
         const lineNum = (patterns.value.slice(0, patterns.selectionStart).match(/\n/g) || []).length;
         tooltip.style.left = caret.left + 5 + "px";
         tooltip.style.top = caret.top + caret.height + patterns.getBoundingClientRect().top + 5 + "px";
-        tooltip.innerHTML = compilationResult[lineNum].map(x => x.stack.join(", ") + x.problems.map(x => "<br/>" + x.description).join("")).join("<hr/>");
+        tooltip.innerHTML = itemsAtIndex(compilationResult, lineNum).map(x => x.item.stack.join(", ") + x.item.problems.map(x => "<br/>" + x.description).join("")).join("<hr/>");
         tooltip.style.display = tooltip.innerHTML.replaceAll("<br>", "").length ? "block" : "none";
     });
 });
