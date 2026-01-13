@@ -1,5 +1,4 @@
-import { compileHex } from "./compiler.js";
-import { allPatterns, defaultPattern, GarbagePattern, getPattern, ProblemType, SimpleStackTrace } from "./patterns.js";
+import { allPatterns, defaultPattern, GarbagePattern, getPattern, ProblemType, StackTrace, compileHex } from "./patterns.js";
 
 // syntax highlighting and whatever
 const patterns = document.getElementById("patterns") as HTMLTextAreaElement;
@@ -28,7 +27,7 @@ function findBestAutocomplete() {
   }
 }
 
-let compilationResult: SimpleStackTrace[][];
+let compilationResult: StackTrace[][];
 function handleInput() {
   let result = patterns.value;
   const bestAutocomplete = findBestAutocomplete();

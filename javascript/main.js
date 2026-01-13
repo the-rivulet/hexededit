@@ -1,5 +1,4 @@
-import { compileHex } from "./compiler.js";
-import { allPatterns, defaultPattern, GarbagePattern, getPattern, ProblemType } from "./patterns.js";
+import { allPatterns, defaultPattern, GarbagePattern, getPattern, ProblemType, compileHex } from "./patterns.js";
 // syntax highlighting and whatever
 const patterns = document.getElementById("patterns");
 const backdrop = document.getElementById("backdrop");
